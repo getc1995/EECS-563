@@ -26,13 +26,15 @@ Lx = 6; % meters
 Ly = 3; % meters
 umax = 20; % m/s, longitudinal velocity
 umin = 10; % m/s
+dumax = 20; % m/s
+dumin = 10; % m/s
 vmax = 1; % m/s, lateral velocity
 
 % Variables
 % let h = x_e - x_o, h is headway
 sdpvar h ye ux uy dx k 
 x = [h; ye];
-dxdt = [ux-dx; uy]; % dx/dt
+% dxdt = [ux-dx; uy]; % dx/dt
 % xd = [h; ye; dx]; % xd is x augmented with disturbance
 [B_hat, coefB, mon] = polynomial(x,2); % B_hat is sos
 
@@ -50,7 +52,8 @@ initial_X = safe - 99;
 % Control gain
 K = [-10, 0;
        0, -10];
-gamma = 1;
+gamma = 50;
+eps = 1e-7;
 
 % Non-empty set constraint
 [s0, c0, m0] = polynomial(x,2);
@@ -58,22 +61,37 @@ initial_const = Barrier - s0*initial_X;
 
 % Contained in safety set
 [s1, c1, m1] = polynomial(x,2);
-safe_const = -Barrier + s1*safe ; % >= 0, such that B in safe, or unsafe in neg(B)
+safe_const = -Barrier + s1*safe - eps; % >= 0, such that B in safe, or unsafe in neg(B)
 
 % Control barrier constraint
-control_const = dB * dx + gamma * Barrier; % >= 0,
+[s2, c2, m2] = polynomial([x;dx],2);
+[s3, c3, m3] = polynomial([x;dx],2);
+% for ux, uy constraint
+% [s4, c4, m4] = polynomial([x;ux;uy;dx],2);
+% [s5, c5, m5] = polynomial([x;ux;uy;dx],2);
 
-constraint = [sos(B_hat); sos(initial_const); sos(safe_const);...
-              sos(s0); sos(s1)];
+u_abs = (umax - umin)/2;
+den1 = 1;% + ((-K(1,:)*x)/(2*u_abs))^2;
+den2 = 1;% + ((-K(2,:)*x)/(2*vmax))^2;
+% 
+control_const = dB * (A*x + B*[15;0] + E*dx) * den1*den2 ...
+                + dB * B * [0; K(2,:)*(x-[0;3])*den1] ...
+                + gamma*Barrier * den1*den2 ...
+                - s2*safe - s3*(dumax-dx)*(dx-dumin) - eps;
+%                 - s4*(umax-ux)*(ux-umin) - s5*(vmax-uy)^2 - eps; % >= 0,
+%             
+% 
+constraint = [ k>=0; sos(initial_const); sos(safe_const); sos(control_const);...
+              sos(B_hat); sos(s0); sos(s1); sos(s2);sos(s3);];% sos(s3); sos(s4)];
 
 obj = [];
-variables = [k;coefB;c0;c1];
+variables = [k;coefB;c0;c1;c2;c3];%c4;c5];
 [sol,v,Q,res] = solvesos(constraint, obj, opts, variables);
 
 
 %% plotting
 figure
-range = [-50 50 -50 50];
+range = [-10 10 -10 10];
 fcontour(str2sym(sdisplay(safe)), range, '-r', 'LevelList', [0])
 grid on;
 axis equal;
