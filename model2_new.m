@@ -40,8 +40,8 @@ vymax = 1; % m/s, lateral velocity
 % u = sKx
 sdpvar px py vx vy ux uy d 
 x = [px; py; vx; vy];
-u = [ux;uy];
-fx = A*x + B*(u+E*d);
+% u = [ux;uy];
+% fx = A*x + B*(u+E*d);
 
 % minimize k to maximize the volume of B >= 0.
 sdpvar k
@@ -50,20 +50,25 @@ Barrier = k - B_hat; % >= 0 means safe
 dB = jacobian(Barrier,x);
 % Safeset
 safe_set = px^2/(Lx/2)^2 + py^2/(Ly/2)^2 - 1;
-safe_set1 = 1 - (px)^2/(10)^2 - (py-6)^2/(4)^2; % >= 0 real safe
+%safe_set1 = 1 - (px)^2/(10)^2 - (py-6)^2/(4)^2; % >= 0 real safe
+safe_set1 = 1 - (py-6)^2/(4)^2; % >= 0 real safe
+safe_set2 = (vxmax-vx)*(vx+vxmax); % >= 0 velocity bound 
+safe_set3= (vymax-vy)*(vy+vymax); % >= 0 velocity bound
 %safe_set2 = 1 - (px+7)^2/(20)^2 - (py-1)^2/(8)^2; % >= 0 bounded region
 
 % initial
 init_set = 3^2 - (px+17)^2 - (py-1.5)^2;
 
 initial_X = safe_set1 - 0.99;
-K = -lqr(A,B,0.1*eye(4),100*eye(2));
-gamma = 5;
+K = -lqr(A,B,eye(4),1*eye(2));
+gamma = 50;
 eps = 1e-7;
 
 % Non-empty set constraint
-[s0, c0, m0] = polynomial(x,2);
-nept_const = Barrier - s0*initial_X;
+[s01, c01, m01] = polynomial(x,2);
+[s02, c02, m02] = polynomial(x,2);
+[s03, c03, m03] = polynomial(x,2);
+nept_const = Barrier - (s01*initial_X + s02*(0.1^2-vx^2) + s03*(0.1^2-vy^2));
 
 % initial set constraint
 %[s1, c1, m1] = polynomial(x,2);
@@ -71,45 +76,51 @@ nept_const = Barrier - s0*initial_X;
 
 % Contained in safety set
 [s21, c21, m21] = polynomial(x,2);
-%[s22, c22, m22] = polynomial(x,2);
+[s22, c22, m22] = polynomial(x,2);
+[s23, c23, m23] = polynomial(x,2);
 safe_const1 = -(Barrier + eps) + s21*safe_set1; % >= 0, such that B in safe, or unsafe in neg(B)
-%safe_const2 = -(Barrier + eps) + s22*safe_set2; % >= 0, such that B in safe, or unsafe in neg(B)
+safe_const2 = -(Barrier + eps) + s22*safe_set2; % >= 0, such that B in safe, or unsafe in neg(B)
+safe_const3 = -(Barrier + eps) + s23*safe_set3; % >= 0, such that B in safe, or unsafe in neg(B)
 
 % Control barrier constraint
-[s3, c3, m3] = polynomial([x;d],2);
+[s31, c31, m31] = polynomial([x;d],2);
+[s32, c32, m32] = polynomial([x;d],2);
+[s33, c33, m33] = polynomial([x;d],2);
 [s4, c4, m4] = polynomial([x;d],2);
 xd = [0;6;0;0];
 den1 = 1 + (K(1,:)*(x-xd)/(2*uxmax))^2;
 den2 = 1 + (K(2,:)*(x-xd)/(2*uymax))^2;
 u = K*(x-xd);
-control_const = (dB * (A*x + B*E*d) * den1*den2 ...
-                + dB * B * [K(1,:)*(x-xd)*den2; K(2,:)*(x-xd)*den1] ...
-                + gamma*Barrier * den1*den2 ) ...
-                - (s3*safe_set1 + s4*(dumax-d)*(d-dumin));
+% control_const = (dB * (A*x + B*E*d) * den1*den2 ...
+%                 + dB * B * [K(1,:)*(x-xd)*den2; K(2,:)*(x-xd)*den1] ...
+%                 + gamma*Barrier * den1*den2 ) ...
+%                 - (s31*safe_set1 + s4*(dumax-d)*(d-dumin));
             
 control_const = (dB * (A*x + B*(u./[den1;den2]+E*d)) * den1*den2 ...
                 + gamma*Barrier * den1*den2 ) ...
-                - (s3*safe_set1 + s4*(dumax-d)*(d-dumin));
+                - (s31*safe_set1 + s32*safe_set2 + s33*safe_set3 + s4*(dumax-d)*(d-dumin));
             
-control_const = (dB * (A*x + B*(u./[den1;den2])) * den1*den2 ...
-                + gamma*Barrier * den1*den2 ) ...
-                - (s3*safe_set1);
+% control_const = (dB * (A*x + B*(u./[den1;den2])) * den1*den2 ...
+%                 + gamma*Barrier * den1*den2 ) ...
+%                 - (s3*safe_set1);
             
 % constraint = [ k>=0; sos(nept_const); sos(init_const); sos(safe_const); sos(control_const);...
 %               sos(B_hat); sos(s0); sos(s1); sos(s2);sos(s3);sos(s4);];% sos(s3); sos(s4)];
           
-constraint = [ k>=0; sos(nept_const); sos(safe_const1); sos(control_const);...
-               sos(B_hat); sos(s0); sos(s21); sos(s3); sos(s4)];
+constraint = [ k>=0; sos(nept_const); sos(safe_const1); sos(safe_const2); sos(safe_const3);...
+               sos(control_const);...
+               sos(B_hat); sos(s01); sos(s02); sos(s03); sos(s21); sos(s22); sos(s23);...
+               sos(s31); sos(s32); sos(s33); sos(s4)];
 
-constraint = [ k>=0; sos(nept_const); sos(safe_const1); sos(control_const);...
-               sos(B_hat); sos(s0); sos(s21); sos(s3)];
+% constraint = [ k>=0; sos(nept_const); sos(safe_const1); sos(control_const);...
+%                sos(B_hat); sos(s0); sos(s21); sos(s3)];
 
 % constraint = [ k>=0; sos(nept_const); sos(safe_const1);...
 %                sos(B_hat); sos(s0); sos(s21)];
 
 
 obj = [];
-variables = [k;coefB;c0;c21;c3];%;c4];%;c5];
+variables = [k;coefB;c01;c02;c03;c21;c22;c23;c31;c32;c33;c4];%;c5];
 %variables = [k;coefB];
 [sol,v,Q,res] = solvesos(constraint, obj, opts, variables);
 
@@ -197,8 +208,8 @@ while true
     old_Bhat = replace(B_hat, coefB, value(coefB));
     [B_hat, coefB, mon] = polynomial(x,2);
     
-    [s0, c0, m0] = polynomial(x,2);
-    safe_const = -(old_Bhat - k) + s0*safe - eps;
+    [s01, c01, m01] = polynomial(x,2);
+    safe_const = -(old_Bhat - k) + s01*safe - eps;
     
     [s1, c1, m1] = polynomial(x,2);
     Barrier = B_hat - k;
@@ -214,10 +225,10 @@ while true
                     + gamma*Barrier...
                     - s11*safe - s12*(dumax-dx)*(dx-dumin) - eps;
                 
-    variables = [k;coefB;c0;c11;c12;];
+    variables = [k;coefB;c01;c11;c12;];
     
     constraint = [k >= 0; sos(expand_const); sos(safe_const); sos(control_const);...
-                  sos(B_hat); sos(s0); sos(s1); sos(s11); sos(s12);...
+                  sos(B_hat); sos(s01); sos(s1); sos(s11); sos(s12);...
                   sos(s51); sos(s52)];
     %%
     if abs(value(k) - old_k) < 1e-4
