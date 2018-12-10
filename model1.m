@@ -1,5 +1,6 @@
 clear all
 close all
+clear;clc;
 
 % Assume straight lane profile
 % Model 1
@@ -13,8 +14,9 @@ close all
 % (Other car follows a straight line y = 0)
 
 %%
-opts = sdpsettings('solver','mosek','sos.model',1,...
-    'sos.scale',1,'verbose',1,'sos.newton',1,'sos.congruence',1);
+opts = []
+% opts = sdpsettings('solver','mosek','sos.model',1,...
+%     'sos.scale',1,'verbose',1,'sos.newton',1,'sos.congruence',1);
 
 % Define the system
 A = zeros(2);
@@ -26,8 +28,8 @@ Lx = 6; % meters
 Ly = 3; % meters
 umax = 20; % m/s, longitudinal velocity
 umin = 10; % m/s
-dumax = 20; % m/s
-dumin = 10; % m/s
+dumax = 16; % m/s
+dumin = 14; % m/s
 vmax = 1; % m/s, lateral velocity
 
 % Variables
@@ -38,11 +40,6 @@ x = [h; ye];
 % xd = [h; ye; dx]; % xd is x augmented with disturbance
 [B_hat, coefB, mon] = polynomial(x,2); % B_hat is sos
 
-% minimize k to maximize the volume of B >= 0.
-Barrier = B_hat - k; % >= 0 means safe
-dB = jacobian(Barrier,x);
-% Safeset
-safe = h^2/(Lx/2)^2 + ye^2/(Ly/2)^2 - 1; % >= 0
 % Input constraint
 
 %% Initialize step
@@ -51,8 +48,8 @@ safe = h^2/(Lx/2)^2 + ye^2/(Ly/2)^2 - 1; % >= 0
 initial_X = safe - 99; 
 % Control gain
 K = [-10, 0;
-       0, -10];
-gamma = 50;
+       0, -11];
+gamma = 1;
 eps = 1e-7;
 
 % Non-empty set constraint
@@ -72,10 +69,10 @@ safe_const = -Barrier + s1*safe - eps; % >= 0, such that B in safe, or unsafe in
 
 u_abs = (umax - umin)/2;
 den1 = 1;% + ((-K(1,:)*x)/(2*u_abs))^2;
-den2 = 1;% + ((-K(2,:)*x)/(2*vmax))^2;
+den2 = 1 + ((-K(2,:)*x)/(2*vmax))^2;
 % 
 control_const = dB * (A*x + B*[15;0] + E*dx) * den1*den2 ...
-                + dB * B * [0; K(2,:)*(x-[0;3])*den1] ...
+                + dB * B * [0; K(2,:)*(x-[0;-4])*den1] ...
                 + gamma*Barrier * den1*den2 ...
                 - s2*safe - s3*(dumax-dx)*(dx-dumin) - eps;
 %                 - s4*(umax-ux)*(ux-umin) - s5*(vmax-uy)^2 - eps; % >= 0,
