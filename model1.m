@@ -1,11 +1,7 @@
 clear all
 close all
-<<<<<<< HEAD
 clear;clc;
 
-=======
-clc
->>>>>>> 674f88dc74028685d025cbe2d8cd7f3a562f20b2
 % Assume straight lane profile
 % Model 1
 % Single integrator 2 states
@@ -46,6 +42,11 @@ x = [h; ye];
 % xd = [h; ye; dx]; % xd is x augmented with disturbance
 [B_hat, coefB, mon] = polynomial(x,2); % B_hat is sos
 
+% minimize k to maximize the volume of B >= 0.
+Barrier = B_hat - k; % >= 0 means safe
+dB = jacobian(Barrier,x);
+% Safeset
+safe = h^2/(Lx/2)^2 + ye^2/(Ly/2)^2 - 1; % >= 0
 % Input constraint
 
 %% Initialize step
@@ -76,15 +77,8 @@ safe_const = -Barrier + s1*safe - eps; % >= 0, such that B in safe, or unsafe in
 u_abs = (umax - umin)/2;
 den1 = 1;% + ((-K(1,:)*x)/(2*u_abs))^2;
 den2 = 1 + ((-K(2,:)*x)/(2*vmax))^2;
-<<<<<<< HEAD
-% 
 control_const = dB * (A*x + B*[15;0] + E*dx) * den1*den2 ...
                 + dB * B * [0; K(2,:)*(x-[0;-4])*den1] ...
-=======
-% + dB * B * [K(1,:)*(x-[0;4])*den2; K(2,:)*(x-[0;4])*den1]
-control_const = dB * (A*x + B*[(umin+umax)/2;0] + E*dx) * den1*den2 ...
-                + dB * B * [0; K(2,:)*(x-[0;4])*den1] ...
->>>>>>> 674f88dc74028685d025cbe2d8cd7f3a562f20b2
                 + gamma*Barrier * den1*den2 ...
                 - s2*safe - s3*(dumax-dx)*(dx-dumin) - eps;
 %                 - s4*(umax-ux)*(ux-umin) - s5*(vmax-uy)^2 - eps; % >= 0,
