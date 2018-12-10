@@ -25,12 +25,12 @@ E = [-1;0];
 % Constants
 Lx = 6; % meters
 Ly = 3; % meters
-uxmax = 50; % m/s, longitudinal acceleration
-uxmin = -50; % m/s
-uymax = 10; % m/s, lateral acceleration
-uymin = -10; % m/s
-dumax = 1; % m/s
-dumin = -1; % m/s
+uxmax = 50; % m/s^2, longitudinal acceleration
+uxmin = -50; % m/s^2
+uymax = 10; % m/s^2, lateral acceleration
+uymin = -10; % m/s^2
+dumax = 1; % m/s^2
+dumin = -1; % m/s^2
 vxmax = 5; % m/s, longitudinal velocity
 vymax = 1; % m/s, lateral velocity
 
@@ -50,8 +50,8 @@ Barrier = k - B_hat; % >= 0 means safe
 dB = jacobian(Barrier,x);
 % Safeset
 safe_set = px^2/(Lx/2)^2 + py^2/(Ly/2)^2 - 1;
-%safe_set1 = 1 - (px)^2/(10)^2 - (py-6)^2/(4)^2; % >= 0 real safe
-safe_set1 = 1 - (py-6)^2/(4)^2; % >= 0 real safe
+safe_set1 = 1 - (px)^2/(10)^2 - (py-6)^2/(4)^2; % >= 0 real safe
+% safe_set1 = 1 - (py-6)^2/(4)^2; % >= 0 real safe
 safe_set2 = (vxmax-vx)*(vx+vxmax); % >= 0 velocity bound 
 safe_set3= (vymax-vy)*(vy+vymax); % >= 0 velocity bound
 %safe_set2 = 1 - (px+7)^2/(20)^2 - (py-1)^2/(8)^2; % >= 0 bounded region
