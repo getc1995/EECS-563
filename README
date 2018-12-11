@@ -1,0 +1,4 @@
+1. remove control constraints
+2. tru unstable controller in when safe set is open
+3. clear up code and comment
+4. try quadratic form and LMI
