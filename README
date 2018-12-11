@@ -1,3 +1,7 @@
+How to use:
+double integrator model and closed safe set: model2_new.m
+open safe set: model1_open.m, model2_open.m
+
 1. remove control constraints
 2. tru unstable controller in when safe set is open
 3. clear up code and comment
